@@ -1,0 +1,99 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Qt
+Makefile*
+!Makefile.depends.linux
+!Makefile.depends.windows
+!src/makefile.unix
+!src/makefile.mingw
+!src/makefile.linux-mingw
+!src/makefile.osx
+
+object_script.*
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+.qmake.stash
+*.pro.user
+*.pro.user.*
+*.qbs
+*.qbs.user
+*.qbs.user.*
+*.moc
+
+# Autotools
+.deps/
+.dirstamp
+autom4te.cache/
+/config.log
+/config.status
+/config.h
+/configure.scan
+/aclocal.m4
+/compile
+/depcomp
+/install-sh
+/missing
+/stamp-h1
+
+# Bitcoin/Wojak specific
+src/wojakcoind
+src/wojakcoin-cli
+src/wojakcoin-tx
+wojakcoin-qt
+src/qt/wojakcoin-qt
+src/test/test_wojakcoin
+src/qt/test/test_wojakcoin-qt
+
+# Directories
+build/
+dist/
+release/
+debug/
+# Depends
+depends/work/
+depends/built/
+depends/sources/
+depends/SDKs/
+depends/x86_64-*/
+depends/i686-*/
+depends/*.zip
+depends/*.tar.gz
+
+# OS generated
+.DS_Store
+Thumbs.db

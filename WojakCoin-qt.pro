@@ -3,8 +3,31 @@ TARGET = wojakcoin-qt
 macx:TARGET = "WojakCoin-Qt"
 VERSION = 0.8.2
 INCLUDEPATH += src src/json src/qt
-QT += core gui network
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+# Enable GUI application
+QT += core gui network widgets
+CONFIG += windows
+CONFIG -= console
+
+# Disable UPnP by default
+!defined(USE_UPNP, var) {
+    DEFINES += DISABLE_UPNP
+    DEFINES += USE_UPNP=0
+    DEFINES += NO_UPNP
+    message("UPnP support disabled")
+} else {
+    DEFINES += USE_UPNP=1
+    LIBS += -lminiupnpc
+    message("UPnP support enabled")
+}
+
+# Ensure Windows GUI application settings
+win32:CONFIG += windows
+win32:CONFIG -= console
+win32:DEFINES += _UNICODE UNICODE _WIN32_WINNT=0x0600
+win32:RC_ICONS += src/qt/res/icons/bitcoin.ico
+
+# Boost and threading
 DEFINES += BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE
 CONFIG += no_include_pwd
 CONFIG += thread
@@ -47,7 +70,7 @@ contains(RELEASE, 1) {
 
     !win32:!macx {
         # Linux: static link and extra security (see: https://wiki.debian.org/Hardening)
-        LIBS += -Wl,-Bstatic
+        LIBS += -Wl,-Bstatic -static-libgcc -static-libstdc++
     }
 }
 
@@ -62,8 +85,9 @@ contains(RELEASE, 1) {
 QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2
 # for extra security on Windows: enable ASLR and DEP via GCC linker flags
 win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat
-# on Windows: enable GCC large address aware linker flag
-win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
+# on Windows: enable GCC large address aware linker flag (disabled for 64-bit)
+# win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
+win32:CONFIG += no_qt_main
 
 # use: qmake "USE_QRCODE=1"
 # libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
@@ -87,7 +111,10 @@ contains(USE_UPNP, -) {
     DEFINES += USE_UPNP=$$USE_UPNP STATICLIB
     INCLUDEPATH += $$MINIUPNPC_INCLUDE_PATH
     LIBS += $$join(MINIUPNPC_LIB_PATH,,-L,) -lminiupnpc
-    win32:LIBS += -liphlpapi
+    win32:!defined(DISABLE_UPNP, var) {
+        LIBS += -lminiupnpc
+    }
+    win32:LIBS += -liphlpapi -lws2_32 -lole32 -lshell32 -loleaut32 -luuid -lcomctl32 -lcomdlg32 -lgdi32 -limm32 -lwinmm -lwinspool
 }
 
 # use: qmake "USE_DBUS=1"
@@ -361,12 +388,17 @@ OTHER_FILES += README.md \
 # platform specific defaults, if not overridden on command line
 isEmpty(BOOST_LIB_SUFFIX) {
     macx:BOOST_LIB_SUFFIX = -mt
-    win32:BOOST_LIB_SUFFIX = -mgw44-mt-s-1_50
+    win32:BOOST_LIB_SUFFIX = -mt-s
 }
 
 isEmpty(BOOST_THREAD_LIB_SUFFIX) {
-    BOOST_THREAD_LIB_SUFFIX = $$BOOST_LIB_SUFFIX
+    win32:BOOST_THREAD_LIB_SUFFIX = _win32-mt-s
+    else:BOOST_THREAD_LIB_SUFFIX = $$BOOST_LIB_SUFFIX
 }
+
+# Override the library name for Boost thread
+win32:LIBS += -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
+!win32:LIBS += -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
 
 isEmpty(BDB_LIB_PATH) {
     macx:BDB_LIB_PATH = /opt/local/lib/db48
@@ -399,7 +431,7 @@ win32:!contains(MINGW_THREAD_BUGFIX, 0) {
     # It can be turned off with MINGW_THREAD_BUGFIX=0, just in case it causes
     # any problems on some untested qmake profile now or in the future.
     DEFINES += _MT
-    QMAKE_LIBS_QT_ENTRY = -lmingwthrd $$QMAKE_LIBS_QT_ENTRY
+    QMAKE_LIBS_QT_ENTRY = -lmingwthrd -lmingw32
 }
 
 !win32:!macx {

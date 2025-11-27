@@ -1,0 +1,126 @@
+# Makefile for Linux static build using depends system
+# This makefile builds wojakcoind daemon with static linking
+
+DEPSDIR:=$(CURDIR)/depends/x86_64-pc-linux-gnu
+
+CC=gcc
+CXX=g++
+CFLAGS=-O2 -pthread -Wall -Wextra -Wformat -Wformat-security -Wno-unused-parameter -g
+CXXFLAGS=$(CFLAGS) -DBOOST_SPIRIT_THREADSAFE -D_FILE_OFFSET_BITS=64 -DHAVE_BUILD_INFO
+LDFLAGS=-Wl,-Bstatic -static-libgcc -static-libstdc++
+
+# Include paths
+INCLUDEPATHS= \
+    -I$(CURDIR) \
+    -I$(CURDIR)/src \
+    -I$(CURDIR)/src/obj \
+    -I$(DEPSDIR)/include \
+    -DUSE_UPNP=1 \
+    -DUSE_IPV6=1 \
+    -I$(CURDIR)/src/leveldb/include \
+    -I$(CURDIR)/src/leveldb/helpers
+
+# Library paths
+LIBPATHS=-L$(DEPSDIR)/lib
+
+# Libraries (order matters for static linking)
+LIBS= \
+    $(CURDIR)/src/leveldb/libleveldb.a \
+    $(CURDIR)/src/leveldb/libmemenv.a \
+    -lminiupnpc \
+    -lssl \
+    -lcrypto \
+    -ldb_cxx \
+    -lboost_system-mt \
+    -lboost_filesystem-mt \
+    -lboost_program_options-mt \
+    -lboost_thread-mt \
+    -lboost_chrono-mt \
+    -lz \
+    -Wl,-Bdynamic \
+    -ldl \
+    -lpthread \
+    -lrt
+
+# Hardening flags
+HARDENING=-fstack-protector-all -Wstack-protector
+HARDENING+=-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2
+
+# Combine flags
+CXXFLAGS+=$(INCLUDEPATHS) $(HARDENING)
+CFLAGS+=$(INCLUDEPATHS) $(HARDENING)
+
+# Object files
+OBJS= \
+    src/obj/version.o \
+    src/obj/checkpoints.o \
+    src/obj/netbase.o \
+    src/obj/addrman.o \
+    src/obj/crypter.o \
+    src/obj/key.o \
+    src/obj/db.o \
+    src/obj/init.o \
+    src/obj/keystore.o \
+    src/obj/main.o \
+    src/obj/net.o \
+    src/obj/protocol.o \
+    src/obj/bitcoinrpc.o \
+    src/obj/rpcdump.o \
+    src/obj/rpcnet.o \
+    src/obj/rpcmining.o \
+    src/obj/rpcwallet.o \
+    src/obj/rpcblockchain.o \
+    src/obj/rpcrawtransaction.o \
+    src/obj/script.o \
+    src/obj/sync.o \
+    src/obj/util.o \
+    src/obj/wallet.o \
+    src/obj/walletdb.o \
+    src/obj/hash.o \
+    src/obj/bloom.o \
+    src/obj/noui.o \
+    src/obj/leveldb.o \
+    src/obj/txdb.o \
+    src/obj/alert.o \
+    src/obj/chainparams.o \
+    src/obj/core.o \
+    src/obj/miner.o \
+    src/obj/bitcoind.o
+
+all: src/wojakcoind
+
+# Build info
+src/obj/build.h: FORCE
+	@echo "Generating build info..."
+	@mkdir -p src/obj
+	@echo "#define BUILD_DATE \"`date`\"" > $@
+
+src/obj/version.o: src/obj/build.h
+
+# Pattern rule for object files
+src/obj/%.o: src/%.cpp
+	@mkdir -p src/obj
+	$(CXX) -c $(CXXFLAGS) -MMD -MF $(@:.o=.d) -o $@ $<
+
+# LevelDB
+src/leveldb/libleveldb.a:
+	@echo "Building LevelDB..."
+	$(MAKE) -C src/leveldb libleveldb.a libmemenv.a
+
+# Main target
+src/wojakcoind: $(OBJS) src/leveldb/libleveldb.a
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBPATHS) $(LIBS)
+
+clean:
+	rm -f src/wojakcoind
+	rm -f src/obj/*.o
+	rm -f src/obj/*.d
+	rm -f src/obj/build.h
+	$(MAKE) -C src/leveldb clean
+
+FORCE:
+
+.PHONY: all clean FORCE
+
+# Include dependency files
+-include src/obj/*.d

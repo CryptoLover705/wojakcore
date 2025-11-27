@@ -5,6 +5,7 @@
 
 #include "main.h"
 #include "bitcoinrpc.h"
+#include "checkpoints.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -267,5 +268,107 @@ Value verifychain(const Array& params, bool fHelp)
         nCheckDepth = params[1].get_int();
 
     return VerifyDB(nCheckLevel, nCheckDepth);
+}
+
+Value getblockchaininfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getblockchaininfo\n"
+            "Returns an object containing various state info regarding block chain processing.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"chain\": \"xxxx\",        (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"blocks\": xxxxxx,         (numeric) the current number of blocks processed in the server\n"
+            "  \"headers\": xxxxxx,        (numeric) the current number of headers we have validated\n"
+            "  \"bestblockhash\": \"...\", (string) the hash of the currently best block\n"
+            "  \"difficulty\": xxxxxx,     (numeric) the current difficulty\n"
+            "  \"verificationprogress\": xxxx, (numeric) estimate of verification progress [0..1]\n"
+            "  \"chainwork\": \"xxxx\"     (string) total amount of work in active chain, in hexadecimal\n"
+            "}\n"
+        );
+
+    Object obj;
+    obj.push_back(Pair("chain",         TestNet() ? "test" : "main"));
+    obj.push_back(Pair("blocks",        (int)nBestHeight));
+    obj.push_back(Pair("headers",       (int)nBestHeight));
+    obj.push_back(Pair("bestblockhash", hashBestChain.GetHex()));
+    obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
+    obj.push_back(Pair("verificationprogress", Checkpoints::GuessVerificationProgress(pindexBest)));
+    obj.push_back(Pair("chainwork",     pindexBest ? pindexBest->nChainWork.GetHex() : "00"));
+    return obj;
+}
+
+Value getchaintxstats(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 2)
+        throw runtime_error(
+            "getchaintxstats [nblocks] [blockhash]\n"
+            "Compute statistics about the total number and rate of transactions in the chain.\n"
+            "\nArguments:\n"
+            "1. nblocks      (numeric, optional) Size of the window in number of blocks (default: one month).\n"
+            "2. blockhash    (string, optional) The hash of the block that ends the window.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"time\": xxxxx,                (numeric) The timestamp for the final block in the window in UNIX format.\n"
+            "  \"txcount\": xxxxx,             (numeric) The total number of transactions in the chain up to that point.\n"
+            "  \"window_final_block_hash\": \"...\", (string) The hash of the final block in the window.\n"
+            "  \"window_block_count\": xxxxx,  (numeric) Size of the window in number of blocks.\n"
+            "  \"window_tx_count\": xxxxx,     (numeric) The number of transactions in the window. Only returned if \"window_block_count\" is > 0.\n"
+            "  \"window_interval\": xxxxx,     (numeric) The elapsed time in the window in seconds. Only returned if \"window_block_count\" is > 0.\n"
+            "  \"txrate\": x.xx,               (numeric) The average rate of transactions per second in the window. Only returned if \"window_interval\" is > 0.\n"
+            "}\n"
+        );
+
+    const CBlockIndex* pindex = pindexBest;
+    
+    int blockcount = 30 * 24 * 60 * 60 / 600; // By default: 1 month, assuming 10 min blocks
+    
+    if (params.size() > 0 && !params[0].is_null()) {
+        blockcount = params[0].get_int();
+    }
+
+    if (params.size() > 1 && !params[1].is_null()) {
+        string strHash = params[1].get_str();
+        uint256 hash(strHash);
+        
+        std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hash);
+        if (mi == mapBlockIndex.end())
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+        pindex = (*mi).second;
+        if (!pindex)
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+    }
+
+    if (pindex == NULL || pindex->nChainTx == 0) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Block not found or block index missing transaction data");
+    }
+
+    if (blockcount < 1 || blockcount >= pindex->nHeight) {
+        blockcount = pindex->nHeight;
+    }
+
+    const CBlockIndex* pindexPast = pindex;
+    for (int i = 0; i < blockcount && pindexPast; i++) {
+        pindexPast = pindexPast->pprev;
+    }
+    
+    int nTimeDiff = pindex->nTime - pindexPast->nTime;
+    int nTxDiff = pindex->nChainTx - pindexPast->nChainTx;
+
+    Object ret;
+    ret.push_back(Pair("time", (int64_t)pindex->nTime));
+    ret.push_back(Pair("txcount", (int64_t)pindex->nChainTx));
+    ret.push_back(Pair("window_final_block_hash", pindex->GetBlockHash().GetHex()));
+    ret.push_back(Pair("window_block_count", blockcount));
+    if (blockcount > 0) {
+        ret.push_back(Pair("window_tx_count", nTxDiff));
+        ret.push_back(Pair("window_interval", nTimeDiff));
+        if (nTimeDiff > 0) {
+            ret.push_back(Pair("txrate", ((double)nTxDiff) / nTimeDiff));
+        }
+    }
+
+    return ret;
 }
 

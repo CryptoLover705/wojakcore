@@ -20,6 +20,9 @@ using namespace boost::assign;
 
 unsigned int pnSeed[] =
 {
+    0xc9198967, // 103.133.25.201
+    0x3b5adf9f, // 159.223.90.59
+    0x2be8f4cf, // 207.244.232.43
 };
 
 class CMainParams : public CChainParams {
@@ -32,7 +35,7 @@ public:
         pchMessageStart[1] = 0x8d;
         pchMessageStart[2] = 0xa5;
         pchMessageStart[3] = 0x79;
-        vAlertPubKey = ParseHex("043bcd7a82413703b37faa6b8925d39a8172be21513f2a2e46369a2c207980e8a5d2c1b879fb4117f81faf15c80156189a09d36b88f82e35c8313cb49403614be1");
+        vAlertPubKey = ParseHex("");
         nDefaultPort = 20759;
         nRPCPort = 20760;
         bnProofOfWorkLimit = CBigNum(~uint256(0) >> 32);
@@ -99,6 +102,7 @@ public:
         assert(hashGenesisBlock == uint256("0x000000004536a4f8fa9d88f0001ca9f9825f8d9fd3ba6383a2f030c0427bf085"));
         assert(genesis.hashMerkleRoot == uint256("0x2d94b8253252a0bf3c5202b26388dd3c468ab0bec4aad107b84d46ef6e8b791a"));
 
+        vSeeds.push_back(CDNSSeedData("wojak-seed.s3na.xyz", "wojak-seed.s3na.xyz"));
 
         base58Prefixes[PUBKEY_ADDRESS] = list_of(73);
         base58Prefixes[SCRIPT_ADDRESS] = list_of(5);
@@ -148,7 +152,7 @@ public:
         pchMessageStart[1] = 0xaa;
         pchMessageStart[2] = 0x61;
         pchMessageStart[3] = 0xf9;
-        vAlertPubKey = ParseHex("04b9b14a6270121a2dce3b2b559e1a5bd705387f98f04a40ea598628435f128f59857fe8eebd31840c03dd78a6d95f0cb41c68c41606c1959ea1627ce606efc391");
+        vAlertPubKey = ParseHex("");
         nDefaultPort = 30759;
         nRPCPort = 30760;
         strDataDir = "testnet3";

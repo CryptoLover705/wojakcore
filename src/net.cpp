@@ -15,11 +15,35 @@
 #include <string.h>
 #endif
 
-#ifdef USE_UPNP
+#if defined(USE_UPNP) && !defined(DISABLE_UPNP) && !defined(NO_UPNP)
 #include <miniupnpc/miniwget.h>
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/upnpcommands.h>
 #include <miniupnpc/upnperrors.h>
+#else
+// Define dummy types and functions when UPnP is disabled
+struct UPNPDev_ {};
+typedef UPNPDev_ UPNPDev;
+struct UPNPUrls_ { char controlURL[1]; char first[1]; };
+typedef UPNPUrls_ UPNPUrls;
+struct IGDdatas_ { char first[1]; };
+typedef IGDdatas_ IGDdatas;
+
+#define UPNPCOMMAND_SUCCESS 0
+#define UPNP_GetValidIGD(a,b,c,d,e) 0
+#define UPNP_GetExternalIPAddress(a,b,c) 0
+#define UPNP_AddPortMapping(a,b,c,d,e,f,g,h,i) 0
+#define UPNP_DeletePortMapping(a,b,c,d,e) 0
+#define freeUPNPDevlist(devlist) ((void)0)
+#define FreeUPNPUrls(urls) ((void)0)
+#define strupnperror(x) ("UPnP disabled")
+
+// Dummy implementation that returns NULL
+static inline UPNPDev* upnpDiscover(int, const char*, const char*, int, int, int, int*) { 
+    printf("UPnP: UPnP disabled\n");
+    return NULL; 
+}
+
 #endif
 
 // Dump addresses to peers.dat every 15 minutes (900s)
@@ -1060,27 +1084,20 @@ void ThreadSocketHandler()
 
 
 
-#ifdef USE_UPNP
+#if defined(USE_UPNP) && !defined(DISABLE_UPNP) && !defined(NO_UPNP)
 void ThreadMapPort()
 {
     std::string port = strprintf("%u", GetListenPort());
     const char * multicastif = 0;
     const char * minissdpdpath = 0;
     struct UPNPDev * devlist = 0;
-    char lanaddr[64];
-
-#ifndef UPNPDISCOVER_SUCCESS
-    /* miniupnpc 1.5 */
-    devlist = upnpDiscover(2000, multicastif, minissdpdpath, 0);
-#else
-    /* miniupnpc 1.6 */
-    int error = 0;
-    devlist = upnpDiscover(2000, multicastif, minissdpdpath, 0, 0, &error);
-#endif
-
+    char lanaddr[64] = "";
     struct UPNPUrls urls;
     struct IGDdatas data;
     int r;
+
+    printf("UPnP: Attempting to enable UPnP\n");
+    devlist = upnpDiscover(2000, multicastif, minissdpdpath, 0, 0, 2, 0);
 
     r = UPNP_GetValidIGD(devlist, &urls, &data, lanaddr, sizeof(lanaddr));
     if (r == 1)
@@ -1140,34 +1157,37 @@ void ThreadMapPort()
             FreeUPNPUrls(&urls);
     }
 }
+#else
+void ThreadMapPort()
+{
+    // UPnP disabled
+}
+#endif
 
 void MapPort(bool fUseUPnP)
 {
+#if defined(DISABLE_UPNP) || defined(NO_UPNP)
+    // UPnP disabled at compile time
+    return;
+#elif defined(USE_UPNP)
+    if (!fUseUPnP) {
+        return;
+    }
+
     static boost::thread* upnp_thread = NULL;
 
-    if (fUseUPnP)
-    {
-        if (upnp_thread) {
-            upnp_thread->interrupt();
-            upnp_thread->join();
-            delete upnp_thread;
-        }
-        upnp_thread = new boost::thread(boost::bind(&TraceThread<void (*)()>, "upnp", &ThreadMapPort));
-    }
-    else if (upnp_thread) {
+    if (upnp_thread) {
         upnp_thread->interrupt();
         upnp_thread->join();
         delete upnp_thread;
-        upnp_thread = NULL;
     }
-}
 
+    upnp_thread = new boost::thread(boost::bind(&TraceThread<void (*)()>, "upnp", &ThreadMapPort));
 #else
-void MapPort(bool)
-{
-    // Intentionally left blank.
-}
+    // UPnP not available
+    return;
 #endif
+}
 
 
 

@@ -1280,13 +1280,12 @@ int64 GetBlockValue(int nHeight, int64 nFees)
 {
     int64 nSubsidy = 100 * COIN;
 
-            if(nHeight == 1)
-            {
-            nSubsidy = 2210526 * COIN;
-            }
-
     // Subsidy is cut in half every 210000 blocks
     nSubsidy >>= (nHeight / Params().SubsidyHalvingInterval());
+    
+    // Ensure block reward doesn't exceed maximum allowed
+    if (nSubsidy > MAX_MONEY)
+        nSubsidy = 0;
 
     return nSubsidy + nFees;
 }
@@ -1321,6 +1320,73 @@ unsigned int ComputeMinWork(unsigned int nBase, int64 nTime)
     return bnResult.GetCompact();
 }
 
+// Enhanced difficulty adjustment using moving average
+unsigned int GetNextWorkRequiredV2(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
+{
+    const int64 nBlocksToAverage = 24;
+    const int64 nAveragingTargetTimespan = nBlocksToAverage * nTargetSpacing;
+    
+    unsigned int nProofOfWorkLimit = Params().ProofOfWorkLimit().GetCompact();
+    
+    // Genesis block
+    if (pindexLast == NULL)
+        return nProofOfWorkLimit;
+    
+    // Not enough blocks for averaging yet
+    if (pindexLast->nHeight < nBlocksToAverage)
+    {
+        return pindexLast->nBits;
+    }
+    
+    const CBlockIndex* pindex = pindexLast;
+    CBigNum bnPastTargetAvg;
+    
+    // Calculate average difficulty over past blocks
+    for (unsigned int nCountBlocks = 1; nCountBlocks <= nBlocksToAverage; nCountBlocks++)
+    {
+        CBigNum bnTarget;
+        bnTarget.SetCompact(pindex->nBits);
+        
+        if (nCountBlocks == 1)
+        {
+            bnPastTargetAvg = bnTarget;
+        }
+        else
+        {
+            bnPastTargetAvg = (bnPastTargetAvg * nCountBlocks + bnTarget) / (nCountBlocks + 1);
+        }
+        
+        if (nCountBlocks != nBlocksToAverage)
+        {
+            if (pindex->pprev == NULL)
+                return nProofOfWorkLimit;
+            pindex = pindex->pprev;
+        }
+    }
+    
+    CBigNum bnNew(bnPastTargetAvg);
+    
+    // Calculate actual timespan
+    int64 nActualTimespan = pindexLast->GetBlockTime() - pindex->GetBlockTime();
+    int64 nTargetTimespan = nAveragingTargetTimespan;
+    
+    // Apply asymmetric dampening - difficulty can drop faster than it rises
+    // This helps the chain recover from hash rate drops more quickly
+    if (nActualTimespan < nTargetTimespan/2)
+        nActualTimespan = nTargetTimespan/2;  // Max 2x difficulty increase
+    if (nActualTimespan > nTargetTimespan*4)
+        nActualTimespan = nTargetTimespan*4;  // Max 4x difficulty decrease
+    
+    // Retarget
+    bnNew *= nActualTimespan;
+    bnNew /= nTargetTimespan;
+    
+    if (bnNew > Params().ProofOfWorkLimit())
+        bnNew = Params().ProofOfWorkLimit();
+    
+    return bnNew.GetCompact();
+}
+
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
 {
     unsigned int nProofOfWorkLimit = Params().ProofOfWorkLimit().GetCompact();
@@ -1328,6 +1394,12 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     // Genesis block
     if (pindexLast == NULL)
         return nProofOfWorkLimit;
+    
+    // Switch to enhanced difficulty adjustment at block 1000
+    if (pindexLast->nHeight + 1 >= 1000)
+    {
+        return GetNextWorkRequiredV2(pindexLast, pblock);
+    }
 
     // Only change once per interval
     if ((pindexLast->nHeight+1) % nInterval != 0)
@@ -1964,8 +2036,13 @@ bool ConnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, C
     if (fBenchmark)
         printf("- Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin)\n", (unsigned)block.vtx.size(), 0.001 * nTime, 0.001 * nTime / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * nTime / (nInputs-1));
 
-    if (GetValueOut(block.vtx[0]) > GetBlockValue(pindex->nHeight, nFees))
-        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", GetValueOut(block.vtx[0]), GetBlockValue(pindex->nHeight, nFees)));
+    int64 nBlockReward = GetBlockValue(pindex->nHeight, nFees);
+    if (GetValueOut(block.vtx[0]) > nBlockReward)
+        return state.DoS(100, error("ConnectBlock() : coinbase pays too much (actual=%"PRI64d" vs limit=%"PRI64d")", GetValueOut(block.vtx[0]), nBlockReward));
+    
+    // Additional check: ensure coinbase output is within valid money range
+    if (!MoneyRange(GetValueOut(block.vtx[0])))
+        return state.DoS(100, error("ConnectBlock() : coinbase output exceeds maximum money"));
 
     if (!control.Wait())
         return state.DoS(100, false);
@@ -2352,8 +2429,9 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits))
         return state.DoS(50, error("CheckBlock() : proof of work failed"));
 
-    // Check timestamp
-    if (block.GetBlockTime() > GetAdjustedTime() + 2 * 60 * 60)
+    // Check timestamp - prevent time warp attacks by limiting future timestamps
+    // Blocks cannot be more than 24 minutes in the future (12 blocks, same ratio as Bitcoin)
+    if (block.GetBlockTime() > GetAdjustedTime() + 24 * 60)
         return state.Invalid(error("CheckBlock() : block timestamp too far in the future"));
 
     // First transaction must be coinbase, the rest must not be

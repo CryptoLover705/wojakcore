@@ -1,82 +1,115 @@
-WojakCoin integration/staging tree
-================================
+# WOJAKCOIN (WJK)
 
-http://www.wojakcoin.org
+WojakCoin is a decentralized cryptocurrency based on Bitcoin Core, featuring a fair launch, advanced difficulty adjustment, and enhanced security.
 
-Copyright © 2017 WojakCoin Developers
+## 🚀 Network Information
 
-What is WojakCoin?
-----------------
+### Official Resources
+- **Network**: WojakCoin Mainnet
+- **Ticker**: WOJAK
+- **DNS Seed**: wojak-seed.s3na.xyz
+- **P2P Port**: 20759
+- **RPC Port**: 20760
 
-WojakCoin is an experimental new digital currency that enables instant payments to
-anyone, anywhere in the world. WojakCoin uses peer-to-peer technology to operate
-with no central authority: managing transactions and issuing money are carried
-out collectively by the network. WojakCoin is also the name of the open source
-software which enables the use of this currency.
+### Seed Nodes
+```
+103.133.25.201:20759
+159.223.90.59:20759
+207.244.232.43:20759
+```
 
-For more information, as well as an immediately useable, binary version of
-the WojakCoin client software, see http://www.wojakcoin.org.
+## 📊 Emission Schedule
 
-License
--------
+### Block Rewards by Era
 
-WojakCoin is released under the terms of the MIT license. See `COPYING` for more
-information or see http://opensource.org/licenses/MIT.
+| Era | Block Range | Reward | Blocks | Total Coins | Cumulative |
+|-----|-------------|--------|--------|-------------|------------|
+| 1 | 0 - 209,999 | 100 WOJAK | 210,000 | 21,000,000 | 21,000,000 |
+| 2 | 210,000 - 419,999 | 50 WOJAK | 210,000 | 10,500,000 | 31,500,000 |
+| 3 | 420,000 - 629,999 | 25 WOJAK | 210,000 | 5,250,000 | 36,750,000 |
+| 4 | 630,000 - 839,999 | 12.5 WOJAK | 210,000 | 2,625,000 | 39,375,000 |
+| 5+ | 840,000+ | Continues halving... | ∞ | ~2,625,000 | ~42,000,000 |
 
-Development process
--------------------
+### Timeline Estimates (2-minute blocks)
 
-Developers work in their own trees, then submit pull requests when they think
-their feature or bug fix is ready.
+| Milestone | Blocks | Time from Launch |
+|-----------|--------|------------------|
+| First Halving | 210,000 | ~291 days (~9.7 months) |
+| Second Halving | 420,000 | ~583 days (~1.6 years) |
+| Third Halving | 630,000 | ~875 days (~2.4 years) |
+| 90% Mined | ~1,050,000 | ~1,458 days (~4 years) |
 
-If it is a simple/trivial/non-controversial change, then one of the WojakCoin
-development team members simply pulls it.
+## 🛠️ Build Instructions
 
-If it is a *more complicated or potentially controversial* change, then the patch
-submitter will be asked to start a discussion (if they haven't already) on the
-[mailing list](http://sourceforge.net/mailarchive/forum.php?forum_name=wojakcoin-development).
+**Recommended Environment**: Debian 7 (Wheezy)
+This codebase is optimized for older Linux distributions. We strongly recommend using Debian 7 for the most stable build experience.
 
-The patch will be accepted if there is broad consensus that it is a good thing.
-Developers should expect to rework and resubmit patches if the code doesn't
-match the project's coding conventions (see `doc/coding.md`) or are
-controversial.
+### Linux (Debian 7 Recommended)
 
-The `master` branch is regularly built and tested, but is not guaranteed to be
-completely stable. [Tags](https://github.com/wojakcoin/wojakcoin/tags) are created
-regularly to indicate new official, stable release versions of WojakCoin.
+1. **Install Dependencies**
+   ```bash
+   apt-get update
+   apt-get install build-essential libtool autotools-dev automake pkg-config libssl-dev libevent-dev bsdmainutils python3
+   # Install MinGW for cross-compilation if needed
+   apt-get install g++-mingw-w64-x86-64
+   ```
 
-Testing
--------
+2. **Build Dependencies**
+   ```bash
+   cd depends
+   make HOST=x86_64-pc-linux-gnu
+   cd ..
+   ```
 
-Testing and code review is the bottleneck for development; we get more pull
-requests than we can review and test. Please be patient and help out, and
-remember this is a security-critical project where any mistake might cost people
-lots of money.
+3. **Build Daemon and GUI**
+   ```bash
+   ./build.sh --linux
+   ```
 
-### Automated Testing
+   Binaries will be available in:
+   - `src/wojakcoind`
+   - `wojakcoin-qt`
 
-Developers are strongly encouraged to write unit tests for new code, and to
-submit new unit tests for old code.
+### Windows (Cross-compile from Debian 7)
 
-Unit tests for the core code are in `src/test/`. To compile and run them:
+1. **Build Dependencies**
+   ```bash
+   cd depends
+   make HOST=x86_64-w64-mingw32
+   cd ..
+   ```
 
-    cd src; make -f makefile.unix test
+2. **Build Daemon and GUI**
+   ```bash
+   ./build.sh --windows
+   ```
 
-Unit tests for the GUI code are in `src/qt/test/`. To compile and run them:
+   Binaries will be available in:
+   - `src/wojakcoind.exe`
+   - `release/wojakcoin-qt.exe`
 
-    qmake BITCOIN_QT_TEST=1 -o Makefile.test wojakcoin-qt.pro
-    make -f Makefile.test
-    ./wojakcoin-qt_test
+## 🔒 Security Features
 
-Every pull request is built for both Windows and Linux on a dedicated server,
-and unit and sanity tests are automatically run. The binaries produced may be
-used for manual QA testing — a link to them will appear in a comment on the
-pull request posted by [WojakCoinPullTester](https://github.com/WojakCoinPullTester). See https://github.com/TheBlueMatt/test-scripts
-for the build/test scripts.
+- **Difficulty Adjustment**: DGW-style moving average (activates at block 1000).
+- **Timestamp Protection**: 24-minute future limit, Median-time-past validation.
+- **Money Supply Protection**: MAX_MONEY validation on rewards.
+- **Network Security**: Multiple seed nodes, DNS seed for redundancy.
 
-### Manual Quality Assurance (QA) Testing
+## 🎓 For Miners
 
-Large changes should have a test plan, and should be tested by somebody other
-than the developer who wrote the code.
+- **Algorithm**: SHA-256
+- **Block Time**: 2 minutes
+- **Initial Reward**: 100 WOJAK
+- **Difficulty**: Adjusts every block (after block 1000)
+- **Maturity**: 20 blocks (40 minutes)
 
-See https://github.com/wojakcoin/QA/ for how to create a test plan.
+### Mining Configuration
+```conf
+gen=1
+genproclimit=-1
+miningaddress=YOUR_WOJAK_ADDRESS
+```
+
+## License
+
+WojakCoin is released under the terms of the MIT license. See [COPYING](COPYING) for more information or see https://opensource.org/licenses/MIT.
