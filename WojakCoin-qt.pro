@@ -24,7 +24,7 @@ CONFIG -= console
 # Ensure Windows GUI application settings
 win32:CONFIG += windows
 win32:CONFIG -= console
-win32:DEFINES += _UNICODE UNICODE _WIN32_WINNT=0x0600
+win32:DEFINES += _UNICODE UNICODE _WIN32_WINNT=0x0600 QT_NO_TABLETEVENT
 win32:RC_ICONS += src/qt/res/icons/bitcoin.ico
 
 # Boost and threading
@@ -72,6 +72,9 @@ contains(RELEASE, 1) {
         # Linux: static link and extra security (see: https://wiki.debian.org/Hardening)
         LIBS += -Wl,-Bstatic -static-libgcc -static-libstdc++
     }
+
+    # Windows: static link C++ runtime to avoid DLL dependencies
+    win32:QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++
 }
 
 !win32 {
@@ -87,7 +90,8 @@ QMAKE_CXXFLAGS *= -D_FORTIFY_SOURCE=2
 win32:QMAKE_LFLAGS *= -Wl,--dynamicbase -Wl,--nxcompat
 # on Windows: enable GCC large address aware linker flag (disabled for 64-bit)
 # win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
-win32:CONFIG += no_qt_main
+# Keep Qt's WinMain for GUI application
+# win32:CONFIG += no_qt_main
 
 # use: qmake "USE_QRCODE=1"
 # libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
@@ -456,10 +460,14 @@ INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$
 LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
 LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX
 # -lgdi32 has to happen after -lcrypto (see  #681)
-win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
+win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid
 LIBS += -lboost_system$$BOOST_LIB_SUFFIX -lboost_filesystem$$BOOST_LIB_SUFFIX -lboost_program_options$$BOOST_LIB_SUFFIX -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
 win32:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 macx:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
+
+# Windows: Add qtmain and force gdi32 at the very end (after crypto)
+# Windows: Add qtmain
+win32:LIBS += -lqtmain
 
 contains(RELEASE, 1) {
     !win32:!macx {
@@ -473,4 +481,9 @@ contains(RELEASE, 1) {
     LIBS += -lrt -ldl
 }
 
-system($$QMAKE_LRELEASE -silent $$TRANSLATIONS)
+# Disabled: lrelease not built to avoid MinGW linker crash
+#system($$QMAKE_LRELEASE -silent $$TRANSLATIONS)
+
+# CRITICAL: Force gdi32 to be linked after crypto by specifying the full library path
+# This prevents qmake from deduplicating it
+win32:LIBS += /usr/lib/gcc/x86_64-w64-mingw32/4.6/../../../../x86_64-w64-mingw32/lib/libgdi32.a

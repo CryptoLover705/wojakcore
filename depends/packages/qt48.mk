@@ -44,6 +44,7 @@ define $(package)_preprocess_cmds
    sed -i.old "/SSLv2_server_method/d" src/network/ssl/qsslsocket_openssl.cpp src/network/ssl/qsslsocket_openssl_symbols.cpp && \
    sed -i.old "/SSLv3_client_method/d" src/network/ssl/qsslsocket_openssl.cpp src/network/ssl/qsslsocket_openssl_symbols.cpp && \
    sed -i.old "/SSLv3_server_method/d" src/network/ssl/qsslsocket_openssl.cpp src/network/ssl/qsslsocket_openssl_symbols.cpp && \
+   sed -i.old "s|LIBS += -lbootstrap|LIBS += $($(package)_build_dir)/src/tools/bootstrap/libbootstrap.a|" src/tools/bootstrap/bootstrap.pri && \
    echo "QMAKE_CC = $(host)-gcc" >> mkspecs/win32-g++/qmake.conf && \
    echo "QMAKE_CXX = $(host)-g++" >> mkspecs/win32-g++/qmake.conf && \
    echo "QMAKE_LINK = $(host)-g++" >> mkspecs/win32-g++/qmake.conf && \
@@ -64,20 +65,22 @@ define $(package)_config_cmds
   export PKG_CONFIG_LIBDIR=$(host_prefix)/lib/pkgconfig && \
   export PKG_CONFIG_PATH=$(host_prefix)/share/pkgconfig  && \
   export CPATH=$(host_prefix)/include && \
-  OPENSSL_LIBS='-L$(host_prefix)/lib -lssl -lcrypto' ./configure $($(package)_config_opts) && \
-  cd tools/linguist/lrelease; ../../../bin/qmake  -o Makefile lrelease.pro
+  OPENSSL_LIBS='-L$(host_prefix)/lib -lssl -lcrypto' ./configure $($(package)_config_opts)
 endef
 
 define $(package)_build_cmds
   export CPATH=$(host_prefix)/include && \
-  $(MAKE) -C src && \
-  $(MAKE) -C tools/linguist/lrelease
+  $(MAKE) -C src
 endef
 
 define $(package)_stage_cmds
   $(MAKE) INSTALL_ROOT=$($(package)_staging_dir) -C src install && \
-  $(MAKE) INSTALL_ROOT=$($(package)_staging_dir) -C tools/linguist/lrelease install && \
   mkdir -p $($(package)_staging_prefix_dir)/bin && \
   cp bin/qmake $($(package)_staging_prefix_dir)/bin/qmake && \
+  cp bin/moc $($(package)_staging_prefix_dir)/bin/moc && \
+  cp bin/uic $($(package)_staging_prefix_dir)/bin/uic && \
+  cp bin/rcc $($(package)_staging_prefix_dir)/bin/rcc && \
+  cp -r plugins $($(package)_staging_prefix_dir)/ && \
+  if [ -d imports ]; then cp -r imports $($(package)_staging_prefix_dir)/; fi && \
   cp -r mkspecs $($(package)_staging_prefix_dir)/
 endef

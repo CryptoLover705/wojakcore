@@ -35,7 +35,7 @@
 *.pdb
 
 # Qt
-Makefile*
+!Makefile*
 !Makefile.depends.linux
 !Makefile.depends.windows
 !src/makefile.unix
