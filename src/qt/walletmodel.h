@@ -2,6 +2,8 @@
 #define WALLETMODEL_H
 
 #include <QObject>
+#include <vector>
+#include <map>
 
 #include "allocators.h" /* for SecureString */
 
@@ -9,6 +11,12 @@ class OptionsModel;
 class AddressTableModel;
 class TransactionTableModel;
 class CWallet;
+class uint256;
+class COutPoint;
+class COutput;
+class CKeyID;
+class CPubKey;
+class CCoinControl;
 
 QT_BEGIN_NAMESPACE
 class QTimer;
@@ -20,6 +28,7 @@ public:
     QString address;
     QString label;
     qint64 amount;
+    bool fSubtractFeeFromAmount; // Subtract fee from amount if true
 };
 
 /** Interface to WojakCoin wallet from Qt view code. */
@@ -77,7 +86,7 @@ public:
     };
 
     // Send coins to a list of recipients
-    SendCoinsReturn sendCoins(const QList<SendCoinsRecipient> &recipients);
+    SendCoinsReturn sendCoins(const QList<SendCoinsRecipient> &recipients, const CCoinControl *coinControl = NULL);
 
     // Wallet encryption
     bool setWalletEncrypted(bool encrypted, const SecureString &passphrase);
@@ -86,6 +95,15 @@ public:
     bool changePassphrase(const SecureString &oldPass, const SecureString &newPass);
     // Wallet backup
     bool backupWallet(const QString &filename);
+
+    // Coin control
+    void lockCoin(COutPoint& output);
+    void unlockCoin(COutPoint& output);
+    bool isLockedCoin(uint256 hash, unsigned int n) const;
+    void listLockedCoins(std::vector<COutPoint>& vOutpts);
+    void getOutputs(const std::vector<COutPoint>& vOutpoints, std::vector<COutput>& vOutputs);
+    void listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const;
+    bool getPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const;
 
     // RAI object for unlocking wallet, returned by requestUnlock()
     class UnlockContext

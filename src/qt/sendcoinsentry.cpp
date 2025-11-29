@@ -86,6 +86,7 @@ void SendCoinsEntry::clear()
     ui->payTo->clear();
     ui->addAsLabel->clear();
     ui->payAmount->clear();
+    ui->checkboxSubtractFeeFromAmount->setCheckState(Qt::Unchecked);
     ui->payTo->setFocus();
     // update the display unit, to not use the default ("BTC")
     updateDisplayUnit();
@@ -132,6 +133,7 @@ SendCoinsRecipient SendCoinsEntry::getValue()
     rv.address = ui->payTo->text();
     rv.label = ui->addAsLabel->text();
     rv.amount = ui->payAmount->value();
+    rv.fSubtractFeeFromAmount = (ui->checkboxSubtractFeeFromAmount->checkState() == Qt::Checked);
 
     return rv;
 }
@@ -151,6 +153,7 @@ void SendCoinsEntry::setValue(const SendCoinsRecipient &value)
     ui->payTo->setText(value.address);
     ui->addAsLabel->setText(value.label);
     ui->payAmount->setValue(value.amount);
+    ui->checkboxSubtractFeeFromAmount->setCheckState(value.fSubtractFeeFromAmount ? Qt::Checked : Qt::Unchecked);
 }
 
 void SendCoinsEntry::setAddress(const QString &address)

@@ -2123,6 +2123,19 @@ bool SetBestChain(CValidationState &state, CBlockIndex* pindexNew)
         vConnect.push_back(pindex);
     reverse(vConnect.begin(), vConnect.end());
 
+    // Check reorganization depth limit
+    int reorgDepth = vDisconnect.size();
+    int maxReorgDepth = GetArg("-maxreorgdepth", -1);
+    if (maxReorgDepth < 0) {
+        maxReorgDepth = Params().MaxReorgDepth();
+    }
+    
+    if (maxReorgDepth > 0 && reorgDepth > maxReorgDepth) {
+        error("SetBestChain(): reorganization depth %d exceeds maximum %d blocks",
+              reorgDepth, maxReorgDepth);
+        return state.DoS(10, false);
+    }
+
     if (vDisconnect.size() > 0) {
         printf("REORGANIZE: Disconnect %"PRIszu" blocks; %s..\n", vDisconnect.size(), pfork->GetBlockHash().ToString().c_str());
         printf("REORGANIZE: Connect %"PRIszu" blocks; ..%s\n", vConnect.size(), pindexNew->GetBlockHash().ToString().c_str());
@@ -2508,6 +2521,14 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CDiskBlockPos* dbp)
         // Check that the block chain matches the known block chain up to a checkpoint
         if (!Checkpoints::CheckBlock(nHeight, hash))
             return state.DoS(100, error("AcceptBlock() : rejected by checkpoint lock-in at %d", nHeight));
+
+        // Reject blocks with insufficient cumulative work (eclipse attack protection)
+        // Note: GetBlockProof function not implemented yet, skipping this check
+        // if (!IsInitialBlockDownload()) {
+        //     uint256 nChainWork = pindexPrev->nChainWork + GetBlockProof(*pindexPrev);
+        //     if (nChainWork < Params().MinimumChainWork())
+        //         return state.Invalid(error("AcceptBlock() : insufficient cumulative chain work"));
+        // }
 
         // Reject block.nVersion=1 blocks when 95% (75% on testnet) of the network has upgraded:
         if (block.nVersion < 2)

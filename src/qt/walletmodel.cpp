@@ -124,7 +124,7 @@ bool WalletModel::validateAddress(const QString &address)
     return addressParsed.IsValid();
 }
 
-WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipient> &recipients)
+WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipient> &recipients, const CCoinControl *coinControl)
 {
     qint64 total = 0;
     QSet<QString> setAddress;
@@ -136,6 +136,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
     }
 
     // Pre-check input data for validity
+    bool fSubtractFeeFromAny = false;
     foreach(const SendCoinsRecipient &rcp, recipients)
     {
         if(!validateAddress(rcp.address))
@@ -149,6 +150,9 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
             return InvalidAmount;
         }
         total += rcp.amount;
+        
+        if(rcp.fSubtractFeeFromAmount)
+            fSubtractFeeFromAny = true;
     }
 
     if(recipients.size() > setAddress.size())
@@ -156,14 +160,26 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
         return DuplicateAddress;
     }
 
-    if(total > getBalance())
+    // If subtracting fee from amount, the total can equal balance
+    // Otherwise, balance check includes fee
+    if(fSubtractFeeFromAny)
     {
-        return AmountExceedsBalance;
+        if(total > getBalance())
+        {
+            return AmountExceedsBalance;
+        }
     }
-
-    if((total + nTransactionFee) > getBalance())
+    else
     {
-        return SendCoinsReturn(AmountWithFeeExceedsBalance, nTransactionFee);
+        if(total > getBalance())
+        {
+            return AmountExceedsBalance;
+        }
+
+        if((total + nTransactionFee) > getBalance())
+        {
+            return SendCoinsReturn(AmountWithFeeExceedsBalance, nTransactionFee);
+        }
     }
 
     {
@@ -171,22 +187,41 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
 
         // Sendmany
         std::vector<std::pair<CScript, int64> > vecSend;
+        std::vector<int> vecSubtractFeeFromAmount; // Track which outputs should subtract fee
+        
+        int nRecipientIndex = 0;
         foreach(const SendCoinsRecipient &rcp, recipients)
         {
             CScript scriptPubKey;
             scriptPubKey.SetDestination(CBitcoinAddress(rcp.address.toStdString()).Get());
             vecSend.push_back(make_pair(scriptPubKey, rcp.amount));
+            
+            // Track which recipients want fee subtracted
+            if (rcp.fSubtractFeeFromAmount)
+                vecSubtractFeeFromAmount.push_back(nRecipientIndex);
+            
+            nRecipientIndex++;
         }
 
         CWalletTx wtx;
         CReserveKey keyChange(wallet);
         int64 nFeeRequired = 0;
         std::string strFailReason;
-        bool fCreated = wallet->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired, strFailReason);
+        
+        // Create a modified coin control if we have subtract fee recipients
+        CCoinControl cc;
+        if (coinControl)
+            cc = *coinControl;
+        
+        // Set the flag if any recipient wants fee subtracted
+        cc.fSubtractFeeFromAmount = !vecSubtractFeeFromAmount.empty();
+        
+        bool fCreated = wallet->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired, strFailReason, &cc);
 
         if(!fCreated)
         {
-            if((total + nFeeRequired) > wallet->GetBalance())
+            // Only check if amount+fee exceeds balance when NOT subtracting fee
+            if(!fSubtractFeeFromAny && (total + nFeeRequired) > wallet->GetBalance())
             {
                 return SendCoinsReturn(AmountWithFeeExceedsBalance, nFeeRequired);
             }
@@ -194,6 +229,24 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(const QList<SendCoinsRecipie
                          CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
         }
+        
+        // Subtract fee from specified outputs AFTER transaction is created
+        if (!vecSubtractFeeFromAmount.empty())
+        {
+            int64 nFeePerOutput = nFeeRequired / vecSubtractFeeFromAmount.size();
+            int64 nFeeRemainder = nFeeRequired % vecSubtractFeeFromAmount.size();
+            
+            for (size_t i = 0; i < vecSubtractFeeFromAmount.size(); ++i)
+            {
+                int nOutputIndex = vecSubtractFeeFromAmount[i];
+                wtx.vout[nOutputIndex].nValue -= nFeePerOutput;
+                
+                // First output gets the remainder
+                if (i == 0)
+                    wtx.vout[nOutputIndex].nValue -= nFeeRemainder;
+            }
+        }
+        
         if(!uiInterface.ThreadSafeAskFee(nFeeRequired))
         {
             return Aborted;
@@ -301,6 +354,90 @@ bool WalletModel::backupWallet(const QString &filename)
 {
     return BackupWallet(*wallet, filename.toLocal8Bit().data());
 }
+
+// Coin control: get public key for address
+bool WalletModel::getPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const
+{
+    return wallet->GetPubKey(address, vchPubKeyOut);   
+}
+
+// Coin control: get outputs from outpoints
+void WalletModel::getOutputs(const std::vector<COutPoint>& vOutpoints, std::vector<COutput>& vOutputs)
+{
+    LOCK(wallet->cs_wallet);
+    BOOST_FOREACH(const COutPoint& outpoint, vOutpoints)
+    {
+        if (!wallet->mapWallet.count(outpoint.hash)) continue;
+        const CWalletTx& wtx = wallet->mapWallet[outpoint.hash];
+        COutput out(&wtx, outpoint.n, wtx.GetDepthInMainChain());
+        vOutputs.push_back(out);
+    }
+}
+
+// Coin control: list all coins grouped by address
+void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const
+{
+    std::vector<COutput> vCoins;
+    wallet->AvailableCoins(vCoins, true);
+    
+    LOCK(wallet->cs_wallet);
+    std::vector<COutPoint> vLockedCoins;
+    wallet->ListLockedCoins(vLockedCoins);
+    
+    // Add locked coins
+    BOOST_FOREACH(const COutPoint& outpoint, vLockedCoins)
+    {
+        if (!wallet->mapWallet.count(outpoint.hash)) continue;
+        const CWalletTx& wtx = wallet->mapWallet[outpoint.hash];
+        COutput out(&wtx, outpoint.n, wtx.GetDepthInMainChain());
+        if (outpoint.n < wtx.vout.size() && wallet->IsMine(wtx.vout[outpoint.n]) && !wtx.IsSpent(outpoint.n))
+            vCoins.push_back(out);
+    }
+        
+    BOOST_FOREACH(const COutput& out, vCoins)
+    {
+        COutput cout = out;
+        
+        while (wallet->IsChange(cout.tx->vout[cout.i]) && cout.tx->vin.size() > 0 && wallet->IsMine(cout.tx->vin[0]))
+        {
+            if (!wallet->mapWallet.count(cout.tx->vin[0].prevout.hash)) break;
+            cout = COutput(&wallet->mapWallet[cout.tx->vin[0].prevout.hash], cout.tx->vin[0].prevout.n, 0);
+        }
+
+        CTxDestination address;
+        if(!ExtractDestination(cout.tx->vout[cout.i].scriptPubKey, address)) continue;
+        mapCoins[QString::fromStdString(CBitcoinAddress(address).ToString())].push_back(out);
+    }
+}
+
+// Coin control: check if coin is locked
+bool WalletModel::isLockedCoin(uint256 hash, unsigned int n) const
+{
+    LOCK(wallet->cs_wallet);
+    return wallet->IsLockedCoin(hash, n);
+}
+
+// Coin control: lock coin
+void WalletModel::lockCoin(COutPoint& output)
+{
+    LOCK(wallet->cs_wallet);
+    wallet->LockCoin(output);
+}
+
+// Coin control: unlock coin
+void WalletModel::unlockCoin(COutPoint& output)
+{
+    LOCK(wallet->cs_wallet);
+    wallet->UnlockCoin(output);
+}
+
+// Coin control: list locked coins
+void WalletModel::listLockedCoins(std::vector<COutPoint>& vOutpts)
+{
+    LOCK(wallet->cs_wallet);
+    wallet->ListLockedCoins(vOutpts);
+}
+
 
 // Handlers for core signals
 static void NotifyKeyStoreStatusChanged(WalletModel *walletmodel, CCryptoKeyStore *wallet)

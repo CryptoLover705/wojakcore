@@ -124,6 +124,12 @@ public:
             addr.nTime = GetTime() - GetRand(nOneWeek) - nOneWeek;
             vFixedSeeds.push_back(addr);
         }
+
+        // Maximum reorganization depth (based on coinbase maturity)
+        nMaxReorgDepth = 20; // 20 blocks (COINBASE_MATURITY value)
+        
+        // Minimum cumulative chain work for valid chains (eclipse attack protection)
+        nMinimumChainWork.SetHex("0x0000000000000000000000000000000000000000000000000000000000010000");
     }
 
     virtual const CBlock& GenesisBlock() const { return genesis; }
@@ -171,6 +177,12 @@ public:
         base58Prefixes[SECRET_KEY]     = list_of(239);
         base58Prefixes[EXT_PUBLIC_KEY] = list_of(0x04)(0x35)(0x87)(0xCF);
         base58Prefixes[EXT_SECRET_KEY] = list_of(0x04)(0x35)(0x83)(0x94);
+
+        // Testnet allows deeper reorgs for testing
+        nMaxReorgDepth = 100 * 2; // ~200 blocks
+        
+        // Minimum chain work (block 1000)
+        nMinimumChainWork.SetHex("0x00000000000000000000000000000000000000000000000000000001f4f4f4f4");
     }
     virtual Network NetworkID() const { return CChainParams::TESTNET; }
 };
@@ -198,6 +210,12 @@ public:
         //assert(hashGenesisBlock == uint256("0x0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
 
         vSeeds.clear();  // Regtest mode doesn't have any DNS seeds.
+
+        // Regtest mode: no reorg limit for testing
+        nMaxReorgDepth = 0; // unlimited
+        
+        // Minimum chain work (regtest doesn't need this but set to genesis)
+        nMinimumChainWork.SetHex("0x0000000000000000000000000000000000000000000000000000000000000001");
     }
 
     virtual bool RequireRPCPassword() const { return false; }
