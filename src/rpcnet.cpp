@@ -6,6 +6,7 @@
 #include "bitcoinrpc.h"
 #include "util.h"
 #include "core.h"
+#include "main.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -50,7 +51,7 @@ Value getpeerinfo(const Array& params, bool fHelp)
         Object obj;
 
         obj.push_back(Pair("addr", stats.addrName));
-        obj.push_back(Pair("services", strprintf("%08"PRI64x, stats.nServices)));
+        obj.push_back(Pair("services", strprintf("%08" PRI64x, stats.nServices)));
         obj.push_back(Pair("lastsend", (boost::int64_t)stats.nLastSend));
         obj.push_back(Pair("lastrecv", (boost::int64_t)stats.nLastRecv));
         obj.push_back(Pair("bytessent", (boost::int64_t)stats.nSendBytes));
@@ -246,7 +247,7 @@ Value getnetworkinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("version",       (int)CLIENT_VERSION));
     obj.push_back(Pair("subversion",    FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>())));
     obj.push_back(Pair("protocolversion",(int)PROTOCOL_VERSION));
-    obj.push_back(Pair("localservices", strprintf("%016"PRI64x, nLocalServices)));
+    obj.push_back(Pair("localservices", strprintf("%016" PRI64x, nLocalServices)));
     obj.push_back(Pair("timeoffset",    (boost::int64_t)GetTimeOffset()));
     obj.push_back(Pair("connections",   (int)vNodes.size()));
 
@@ -270,9 +271,12 @@ Value getnetworkinfo(const Array& params, bool fHelp)
     networks.push_back(net_ipv6);
 
     obj.push_back(Pair("networks",      networks));
-    obj.push_back(Pair("relayfee",      ValueFromAmount(CTransaction::nMinRelayTxFee)));
-
+    obj.push_back(Pair("relayfee",      ValueFromAmount(nTransactionFee)));
+    obj.push_back(Pair("warnings",      GetWarnings("statusbar")));
+    obj.push_back(Pair("networkactive", true));
+    obj.push_back(Pair("incrementalfee", ValueFromAmount(0)));
     Array local_addresses;
+    // mapLocalHost is not exposed, skipping localaddresses
     obj.push_back(Pair("localaddresses", local_addresses));
 
     return obj;

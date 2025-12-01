@@ -11,6 +11,22 @@
 /** Run the miner threads */
 void GenerateBitcoins(bool fGenerate, CWallet* pwallet);
 /** Generate a new block, without valid proof-of-work */
+/** Generate a new block, without valid proof-of-work */
+class BlockAssembler
+{
+public:
+    BlockAssembler();
+    CBlockTemplate* CreateNewBlock(CReserveKey& reservekey);
+    
+private:
+    // Configuration
+    unsigned int nBlockMaxSize;
+    unsigned int nBlockPrioritySize;
+    unsigned int nBlockMinSize;
+
+    // Internal methods can be added here as we refactor further
+};
+
 CBlockTemplate* CreateNewBlock(CReserveKey& reservekey);
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& nExtraNonce);

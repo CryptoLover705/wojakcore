@@ -261,6 +261,8 @@ static const CRPCCommand vRPCCommands[] =
     { "verifychain",            &verifychain,            true,      false },
     { "getblockchaininfo",      &getblockchaininfo,      true,      false },
     { "getchaintxstats",        &getchaintxstats,        true,      false },
+    { "getmempoolentry",        &getmempoolentry,        true,      false },
+    { "estimatesmartfee",       &estimatesmartfee,       true,      false },
     { "getnetworkinfo",         &getnetworkinfo,         true,      false },
     { "getnetworkstats",        &getnetworkstats,        true,      false },
     { "getwalletinfo",          &getwalletinfo,          true,      false },
