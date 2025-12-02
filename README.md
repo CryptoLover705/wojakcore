@@ -6,7 +6,7 @@ WojakCoin is a decentralized cryptocurrency based on Bitcoin Core, featuring a f
 
 ### Official Resources
 - **Network**: WojakCoin Mainnet
-- **Ticker**: WOJAK
+- **Ticker**: WJK
 - **DNS Seed**: wojak-seed.s3na.xyz
 - **P2P Port**: 20759
 - **RPC Port**: 20760
@@ -24,10 +24,10 @@ WojakCoin is a decentralized cryptocurrency based on Bitcoin Core, featuring a f
 
 | Era | Block Range | Reward | Blocks | Total Coins | Cumulative |
 |-----|-------------|--------|--------|-------------|------------|
-| 1 | 0 - 209,999 | 100 WOJAK | 210,000 | 21,000,000 | 21,000,000 |
-| 2 | 210,000 - 419,999 | 50 WOJAK | 210,000 | 10,500,000 | 31,500,000 |
-| 3 | 420,000 - 629,999 | 25 WOJAK | 210,000 | 5,250,000 | 36,750,000 |
-| 4 | 630,000 - 839,999 | 12.5 WOJAK | 210,000 | 2,625,000 | 39,375,000 |
+| 1 | 0 - 209,999 | 100 WJK | 210,000 | 21,000,000 | 21,000,000 |
+| 2 | 210,000 - 419,999 | 50 WJK | 210,000 | 10,500,000 | 31,500,000 |
+| 3 | 420,000 - 629,999 | 25 WJK | 210,000 | 5,250,000 | 36,750,000 |
+| 4 | 630,000 - 839,999 | 12.5 WJK | 210,000 | 2,625,000 | 39,375,000 |
 | 5+ | 840,000+ | Continues halving... | ∞ | ~2,625,000 | ~42,000,000 |
 
 ### Timeline Estimates (2-minute blocks)
@@ -99,7 +99,7 @@ This codebase is optimized for older Linux distributions. We strongly recommend 
 
 - **Algorithm**: SHA-256
 - **Block Time**: 2 minutes
-- **Initial Reward**: 100 WOJAK
+- **Initial Reward**: 100 WJK
 - **Difficulty**: Adjusts every block (after block 1000)
 - **Maturity**: 20 blocks (40 minutes)
 
@@ -107,7 +107,7 @@ This codebase is optimized for older Linux distributions. We strongly recommend 
 ```conf
 gen=1
 genproclimit=-1
-miningaddress=YOUR_WOJAK_ADDRESS
+miningaddress=address
 ```
 
 ## License
